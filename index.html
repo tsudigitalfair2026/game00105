@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>ピエロスロット</title>
+<style>
+*{
+margin:0;
+padding:0;
+box-sizing:border-box;
+touch-action:none;
+-webkit-tap-highlight-color:transparent;
+}
+html,body{
+width:100%;
+height:100%;
+overflow:hidden;
+background:#111;
+color:#fff;
+font-family:sans-serif;
+}
+.screen{
+display:none;
+width:100%;
+height:100%;
+padding:10px;
+}
+.active{
+display:flex;
+flex-direction:column;
+justify-content:center;
+align-items:center;
+}
+.card{
+max-width:430px;
+width:100%;
+background:#222;
+border-radius:16px;
+padding:18px;
+text-align:center;
+}
+button{
+border:none;
+border-radius:12px;
+font-size:18px;
+font-weight:bold;
+padding:16px;
+width:100%;
+margin-top:10px;
+}
+.startBtn,.retryBtn{
+background:#ffd700;
+}
+#gameScreen{
+display:none;
+flex-direction:column;
+height:100%;
+}
+.top{
+display:flex;
+justify-content:space-between;
+padding:10px;
+font-size:20px;
+font-weight:bold;
+}
+.machine{
+max-width:430px;
+width:100%;
+margin:auto;
+background:#222;
+border-radius:16px;
+padding:12px;
+}
+.lamp{
+height:60px;
+display:flex;
+justify-content:center;
+align-items:center;
+font-size:26px;
+font-weight:bold;
+margin-bottom:10px;
+border-radius:12px;
+background:#000;
+color:#333;
+}
+.lamp.on{
+background:#001a3a;
+color:#00d5ff;
+box-shadow:0 0 20px #00d5ff;
+}
+.grid{
+display:grid;
+grid-template-columns:repeat(3,1fr);
+gap:6px;
+}
+.cell{
+height:85px;
+background:#fff;
+color:#000;
+display:flex;
+align-items:center;
+justify-content:center;
+font-size:42px;
+border-radius:10px;
+}
+.line{
+margin-top:8px;
+text-align:center;
+font-size:18px;
+color:#ff5555;
+}
+.controls{
+display:flex;
+gap:6px;
+margin-top:12px;
+}
+.controls button{
+margin:0;
+background:#e53935;
+color:#fff;
+}
+.spin{
+background:#00b050!important;
+}
+.msg{
+text-align:center;
+min-height:50px;
+margin-top:10px;
+font-weight:bold;
+}
+.resultMoney{
+font-size:42px;
+font-weight:bold;
+}
+.rank{
+font-size:40px;
+color:gold;
+margin:10px;
+}
+</style>
+</head>
+<body>
+
+<div id="startScreen" class="screen active">
+<div class="card">
+<h1>🤡 ピエロスロット 🤡</h1>
+<br>
+<p>
+所持金3万円スタート。<br>
+1回転1000円。<br>
+中央ラインで3つ揃えると当たり。<br>
+🤡🤡🤡で超大量ボーナス！<br>
+所持金0円で終了。
+</p>
+<button class="startBtn" id="startBtn">スタート</button>
+</div>
+</div>
+
+<div id="gameScreen" class="screen">
+<div class="top">
+<div>所持金 ¥<span id="money">30000</span></div>
+<div>BET ¥1000</div>
+</div>
+
+<div class="machine">
+<div id="lamp" class="lamp">CHANCE</div>
+
+<div class="grid" id="grid"></div>
+
+<div class="line">──────── 中央ライン ────────</div>
+
+<div class="controls">
+<button class="spin" id="spinBtn">SPIN</button>
+<button id="stop1">STOP1</button>
+<button id="stop2">STOP2</button>
+<button id="stop3">STOP3</button>
+</div>
+
+<div class="msg" id="msg">SPINを押してください</div>
+</div>
+</div>
+
+<div id="resultScreen" class="screen">
+<div class="card">
+<h1>ゲーム終了</h1>
+<br>
+<div>最終所持金</div>
+<div class="resultMoney">¥<span id="finalMoney"></span></div>
+<div id="rank" class="rank"></div>
+<button class="retryBtn" id="retryBtn">もう一度遊ぶ</button>
+</div>
+</div>
+
+<script>
+const symbols=["🤡","🍒","🔔","⭐","7️⃣","🍇"];
+
+const grid=document.getElementById("grid");
+const moneyEl=document.getElementById("money");
+const msg=document.getElementById("msg");
+const lamp=document.getElementById("lamp");
+
+let money=30000;
+let reels=[];
+let spinning=false;
+let stopped=[false,false,false];
+let timers=[];
+
+for(let i=0;i<9;i++){
+const d=document.createElement("div");
+d.className="cell";
+d.textContent="🤡";
+grid.appendChild(d);
+}
+
+const cells=[...document.querySelectorAll(".cell")];
+
+function createReels(){
+reels=[
+["🤡","🤡","🤡"],
+["🤡","🤡","🤡"],
+["🤡","🤡","🤡"]
+];
+}
+
+createReels();
+
+function draw(){
+for(let c=0;c<3;c++){
+for(let r=0;r<3;r++){
+cells[r*3+c].textContent=reels[c][r];
+}
+}
+}
+
+function rand(){
+return symbols[Math.floor(Math.random()*symbols.length)];
+}
+
+function startSpin(){
+
+if(spinning || money<1000) return;
+
+money-=1000;
+moneyEl.textContent=money;
+
+lamp.classList.remove("on");
+msg.textContent="目押しで止めよう！";
+
+spinning=true;
+stopped=[false,false,false];
+
+for(let c=0;c<3;c++){
+timers[c]=setInterval(()=>{
+reels[c]=[rand(),rand(),rand()];
+draw();
+},60);
+}
+}
+
+function stopReel(i){
+
+if(!spinning || stopped[i]) return;
+
+stopped[i]=true;
+clearInterval(timers[i]);
+
+if(stopped.every(v=>v)){
+spinning=false;
+judge();
+}
+}
+
+function judge(){
+
+const center=[
+reels[0][1],
+reels[1][1],
+reels[2][1]
+];
+
+if(center[0]===center[1] && center[1]===center[2]){
+
+let win=5000;
+
+if(center[0]==="🤡"){
+win=30000;
+lamp.classList.add("on");
+msg.textContent="✨GOGO! ピエロ大当たり！ +30000円✨";
+}else if(center[0]==="7️⃣"){
+win=15000;
+lamp.classList.add("on");
+msg.textContent="🎉777大当たり！ +15000円🎉";
+}else{
+lamp.classList.add("on");
+msg.textContent="🎊当たり！ +5000円🎊";
+}
+
+money+=win;
+moneyEl.textContent=money;
+
+}else{
+msg.textContent="はずれ...";
+}
+
+if(money<=0){
+gameOver();
+}
+}
+
+function gameOver(){
+
+let rank="C";
+
+if(money>=100000) rank="S";
+else if(money>=70000) rank="A";
+else if(money>=40000) rank="B";
+
+document.getElementById("finalMoney").textContent=money;
+document.getElementById("rank").textContent=rank;
+
+document.getElementById("gameScreen").style.display="none";
+document.getElementById("resultScreen").classList.add("active");
+}
+
+document.getElementById("startBtn").onclick=()=>{
+money=30000;
+moneyEl.textContent=money;
+draw();
+
+document.getElementById("startScreen").classList.remove("active");
+document.getElementById("gameScreen").style.display="flex";
+};
+
+document.getElementById("spinBtn").onclick=startSpin;
+document.getElementById("stop1").onclick=()=>stopReel(0);
+document.getElementById("stop2").onclick=()=>stopReel(1);
+document.getElementById("stop3").onclick=()=>stopReel(2);
+
+document.getElementById("retryBtn").onclick=()=>{
+location.reload();
+};
+
+draw();
+</script>
+
+</body>
+</html>
